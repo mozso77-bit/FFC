@@ -3,7 +3,6 @@
 -- (crossing-timestamp gap) of the car ahead; 'armed' holds to the zone END. The app
 -- reads 'armed', polls KERS, drives the boost. Cross-car logic lives HERE, never in
 -- the car physics thread. Host via ACSM CSP Extra Options: [SCRIPT_1] SCRIPT=url.
--- Detail + realDRS.lua provenance: CLAUDE.md §C.
 
 --------------------- CONFIG (defaults; host may override) --------------
 local WINDOW_S    = 1.0   -- arm within this real time gap (s) at the detection line
@@ -131,6 +130,10 @@ function script.update()
   local z  = zones[armedZone]
   local me = ac.getCar(0)
   if me == nil or z == nil then return end
+  if me.isInPitlane then                     -- Fix3: pit / retire mid-zone -> clear even if
+    armedZone = nil; sh.armed = false        -- the entered-latch never set (or a wrap-arc pit)
+    return
+  end
   if inArc(me.splinePosition, z.det, z.e) then
     armedEntered = true
   elseif armedEntered then
