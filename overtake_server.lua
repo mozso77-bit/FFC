@@ -5,20 +5,19 @@
 -- budget (OVERTAKE_KJ if eligible, else 0; host-tunable).
 --
 -- Host via ACSM CSP Extra Options:
+--   [SCRIPT_5]
+--   SCRIPT = "https://raw.githubusercontent.com/mozso77-bit/FFC/main/overtake_server.lua"
 --
--- [SCRIPT_1]
--- SCRIPT = "https://raw.githubusercontent.com/mozso77-bit/FFC/main/overtake_server.lua"
---
--- [FFC_OVERTAKE]
--- WINDOW_S = 1.0
--- ACTIVE_ON_LAP = 2
--- OVERTAKE_KJ = 300
+--   [FFC_OVERTAKE]
+--   WINDOW_S = 1.0
+--   ACTIVE_ON_LAP = 2
+--   OVERTAKE_KJ = 500
 --
 
 --------------------- CONFIG (defaults; host may override) --------------
 local WINDOW_S    = 1.0   -- arm within this real time gap (s) at the detection line
 local LAP_MIN     = 2     -- enabled from this lap (lapCount + 1 >= LAP_MIN)
-local OVERTAKE_KJ = 500   -- per-lap budget (kJ) -- published to the app
+local OVERTAKE_KJ = 300   -- per-lap budget (kJ) -- published to the app
 -------------------------------------------------------------------------
 
 local sim = ac.getSim()
@@ -50,8 +49,7 @@ local function publishRules()
 end
 publishRules()
 
--- Optional host tuning via server config [FFC_OVERTAKE] WINDOW_S / ACTIVE_ON_LAP /
--- OVERTAKE_KJ. Never fires offline, so the defaults above stand there.
+-- Optional host tuning via server config [FFC_OVERTAKE] WINDOW_S / ACTIVE_ON_LAP / OVERTAKE_KJ.
 ac.onOnlineWelcome(function(_, config)
   WINDOW_S    = config:get('FFC_OVERTAKE', 'WINDOW_S', WINDOW_S)
   LAP_MIN     = config:get('FFC_OVERTAKE', 'ACTIVE_ON_LAP', LAP_MIN)
@@ -59,8 +57,7 @@ ac.onOnlineWelcome(function(_, config)
   publishRules()
 end)
 
--- ---- load the track's DRS DETECTION lines (only detection points matter now) ----
--- io.load + hand parser (ac.INIConfig has silently no-op'd on some paths before).
+-- ---- load the track's DRS DETECTION lines ----
 local dets = {}
 do
   local content
@@ -69,14 +66,14 @@ do
     for line in content:gmatch('[^\r\n]+') do
       local v = line:match('^%s*DETECTION%s*=%s*([%d%.]+)')
       local d = v and tonumber(v)
-      if d and d > 0 then dets[#dets + 1] = d end          -- skip missing/degenerate (-> 0)
+      if d and d > 0 then dets[#dets + 1] = d end
     end
   end
 end
+ac.log('FFC_Overtake: track sections=' .. #dets)   -- must read above 0 else track read failed
 
--- crossing timestamps (ms) per detection per car
 local crossTime  = {}
-local armedLocal = false     -- mirror of sh.armed, gates the pit-clear update cheaply
+local armedLocal = false
 for i = 1, #dets do crossTime[i] = {} end
 
 local function resetState()
@@ -86,16 +83,8 @@ local function resetState()
 end
 ac.onSessionStart(resetState)
 
--- A local jump (race restart -> grid, teleport, reset) lands OFF-pit, so the pit-clear
--- update won't fire -- clear the arm here too so a stale value can't grant next lap.
--- (Only the local arm; other cars' crossing timestamps stay valid.)
 ac.onCarJumped(0, function() armedLocal = false; sh.armed = false end)
 
--- On OUR crossing of a detection: armed = within WINDOW_S of a car ahead at that line.
--- 'armed' HOLDS that value until the next detection overwrites it, so at S/F it equals
--- the last detection's result (end of the last corner). The app reads it there and
--- applies the lap gate + pit check. No END events / zone arc / M4 -- deployment is
--- anywhere-on-the-lap, so there is no in-zone arm to get stuck.
 local function evalArm(i, myTimeMs)
   local arm = false
   if sim.raceSessionType == ac.SessionType.Race then
@@ -115,11 +104,6 @@ for i, det in ipairs(dets) do
   end)
 end
 
--- Pit-clear: 'armed' holds between detections, and detection crossings are auto-skipped
--- in the pitlane -- so a driver who pits would keep a pre-pit arm and could commit a grant
--- at S/F on stale proximity. Clear it on pit entry; a fresh detection re-arms after pit
--- exit (so the out-lap forfeits, but the lap after is honoured if re-earned). Gated on the
--- local mirror -> ~one branch/frame unless actually armed.
 function script.update()
   if not armedLocal then return end
   if ac.getCar(0).isInPitlane then armedLocal = false; sh.armed = false end

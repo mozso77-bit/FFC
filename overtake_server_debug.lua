@@ -11,19 +11,19 @@
 --
 -- Host via ACSM CSP Extra Options (example):
 --
--- [SCRIPT_1]
+-- [SCRIPT_5]
 -- SCRIPT = "https://raw.githubusercontent.com/mozso77-bit/FFC/main/overtake_server_debug.lua"
 --
 -- [FFC_OVERTAKE]
 -- WINDOW_S = 1.0
 -- ACTIVE_ON_LAP = 1
--- OVERTAKE_KJ = 300
+-- OVERTAKE_KJ = 500
 --
 
 --------------------- CONFIG (defaults; host may override) --------------
 local WINDOW_S      = 1.0   -- arm within this real time gap (s) at the detection line
 local LAP_MIN       = 1     -- DEBUG: enabled from lap 1 (production default is 3)
-local OVERTAKE_KJ   = 500   -- per-lap budget (kJ) -- published to the app
+local OVERTAKE_KJ   = 300   -- per-lap budget (kJ) -- published to the app
 local DEBUG_PHANTOM = true  -- DEBUG: seed a fake car 0.5 s ahead at each detection (solo self-test); false = real behaviour
 -------------------------------------------------------------------------
 
@@ -75,10 +75,14 @@ do
     for line in content:gmatch('[^\r\n]+') do
       local v = line:match('^%s*DETECTION%s*=%s*([%d%.]+)')
       local d = v and tonumber(v)
-      if d and d > 0 then dets[#dets + 1] = d end          -- skip missing/degenerate (-> 0)
+      if d and d > 0 then dets[#dets + 1] = d end
     end
   end
 end
+ac.log('FFC_Overtake: track sections=' .. #dets
+  .. ' me.index=' .. ac.getCar(0).index
+  .. ' me.sessionID=' .. (car and car.sessionID or -1)
+  .. ' phantom=' .. tostring(DEBUG_PHANTOM))
 
 -- crossing timestamps (ms) per detection per car
 local crossTime  = {}
@@ -113,10 +117,19 @@ local function evalArm(i, myTimeMs)
   end
   armedLocal = arm
   sh.armed   = arm
+  ac.log('FFC_Overtake: evalArm section#' .. i
+    .. ' race=' .. tostring(sim.raceSessionType == ac.SessionType.Race)
+    .. ' armed=' .. tostring(arm))
 end
 
+-- DIAGNOSTIC: log EVERY crossing (all cars) with the crosser index + our identity in both spaces.
+-- Arming still uses `== 0` (same as production) so this build reproduces production behaviour while
+-- the log tells us whether `== 0` is right or should be `car.sessionID`.
 for i, det in ipairs(dets) do
   ac.onTrackPointCrossed(-1, det, function(carIndex, timeMs)
+    ac.log('FFC_Overtake: cross section#' .. i .. ' crosser=' .. carIndex
+      .. ' (me.sessionID=' .. (car and car.sessionID or -1)
+      .. ', me.index=' .. ac.getCar(0).index .. ')')
     if carIndex == 0 then evalArm(i, timeMs)
     else crossTime[i][carIndex] = timeMs end
   end)
