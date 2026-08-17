@@ -94,7 +94,8 @@ local function evalArm()
       local bestGap, bestSpeed
       for idx = 0, sim.carsCount - 1 do
         local o = ac.getCar(idx)
-        if o and o.index ~= myIdx and o.isConnected and not o.isInPitlane and o.speedKmh > 5 then
+        if o and o.index ~= myIdx and o.isConnected and not o.isInPitlane and o.speedKmh > 5
+           and o.splinePosition >= 0 then                    -- F1: skip invalid/unspawned spline (matches FFC_DRS)
           local gap = o.splinePosition - mySpr               -- forward spline distance...
           if gap < 0 then gap = gap + 1.0 end                -- ...wrapping at S/F
           if gap > 0 and gap < 0.5 and (not bestGap or gap < bestGap) then
