@@ -21,7 +21,7 @@
 local WINDOW_S      = 1.0
 local LAP_MIN       = 1     -- DEBUG: enabled from lap 1
 local OVERTAKE_KJ   = 500
-local DEBUG_PHANTOM = true  -- true = force-arm in a Race (solo self-test); false = real gap-based behaviour
+local DEBUG_PHANTOM = false  -- true = force-arm in a Race (solo self-test); false = real gap-based behaviour
 -------------------------------------------------------------------------
 
 local sim   = ac.getSim()
